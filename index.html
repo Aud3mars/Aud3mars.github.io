@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="NewsFlow — актуальные новости со всего мира" />
+  <title>NewsFlow — Лента новостей</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Serif+4:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">News<span>Flow</span></div>
+
+    <div class="header-search">
+      <input type="search" id="search-input" placeholder="Поиск…" aria-label="Поиск новостей" />
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <h1>Главные новости дня</h1>
+    <p>Актуальные новости со всего мира — обновляются в реальном времени</p>
+    <p id="live-date"></p>
+  </div>
+</section>
+
+<div class="categories-bar" role="navigation" aria-label="Категории новостей">
+  <ul>
+    <li><button class="active" data-topic="headlines">🌍 Все новости</button></li>
+  </ul>
+</div>
+
+<div class="main-layout">
+
+  <main>
+    <h2 class="section-title" id="feed-title">Свежие новости</h2>
+    <div id="news-feed">
+      <div class="skeleton-card"><div class="skeleton-line wide"></div><div class="skeleton-line mid"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-line wide"></div><div class="skeleton-line mid"></div><div class="skeleton-line short"></div></div>
+      <div class="skeleton-card"><div class="skeleton-line wide"></div><div class="skeleton-line short"></div></div>
+    </div>
+  </main>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-widget">
+      <div class="widget-header">Популярное сейчас</div>
+      <ol class="sidebar-news-list" id="trending-list">
+        <div class="spinner"></div>
+      </ol>
+    </div>
+
+    <div class="sidebar-widget">
+      <div class="widget-header">Подписка на новости</div>
+      <div class="subscribe-widget">
+        <p>Получайте самые важные новости прямо на почту — без спама.</p>
+        <div class="form-group">
+          <label for="sub-name">Ваше имя</label>
+          <input type="text" id="sub-name" placeholder="Иван Иванов" required />
+        </div>
+        <div class="form-group">
+          <label for="sub-email">Email</label>
+          <input type="email" id="sub-email" placeholder="example@mail.ru" required />
+        </div>
+        <div class="form-group">
+          <label for="sub-freq">Частота рассылки</label>
+          <select id="sub-freq">
+            <option value="daily">Ежедневно</option>
+            <option value="weekly">Еженедельно</option>
+            <option value="breaking">Только срочные</option>
+          </select>
+        </div>
+        <button class="btn-subscribe" id="btn-sub" type="button">Подписаться</button>
+        <div class="subscribe-success" id="sub-success">✓ Вы успешно подписались!</div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-logo">NewsFlow</div>
+      <p class="footer-tagline">Актуальные новости<br>со всего мира</p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>&copy; <span id="year"></span> NewsFlow. Новости предоставлены Google News RSS.</p>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('live-date').textContent =
+    new Date().toLocaleDateString('ru-RU', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  const PROXY = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+  const FEEDS = {
+    headlines: 'https://news.google.com/rss?hl=ru&gl=RU&ceid=RU:ru',
+  };
+
+  const LABELS = { headlines: 'Все новости' };
+
+  let allArticles = [];
+  let activeTopic = 'headlines';
+
+  async function loadNews(topic) {
+    activeTopic = topic;
+    showSkeleton();
+    try {
+      const url  = PROXY + encodeURIComponent(FEEDS[topic]);
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data.status !== 'ok' || !data.items?.length) throw new Error('empty');
+      allArticles = data.items;
+      renderFeed(allArticles);
+      renderTrending(allArticles.slice(0, 7));
+      document.getElementById('feed-title').textContent = LABELS[topic] || 'Новости';
+    } catch(e) {
+      document.getElementById('news-feed').innerHTML = `
+        <div class="error-msg">
+          <h3>Не удалось загрузить новости</h3>
+          <p>Проверьте интернет-соединение или попробуйте позже.<br>
+          <em style="font-size:0.78rem;opacity:0.6">(Ошибка: ${e.message})</em></p>
+        </div>`;
+      document.getElementById('trending-list').innerHTML = '';
+    }
+  }
+
+  function showSkeleton() {
+    document.getElementById('news-feed').innerHTML = [1,2,3,4].map(() => `
+      <div class="skeleton-card">
+        <div class="skeleton-line wide"></div>
+        <div class="skeleton-line mid"></div>
+        <div class="skeleton-line short"></div>
+      </div>`).join('');
+    document.getElementById('trending-list').innerHTML = '<div class="spinner"></div>';
+  }
+
+  function renderFeed(articles) {
+    const el = document.getElementById('news-feed');
+    if (!articles.length) {
+      el.innerHTML = '<div class="error-msg"><p>Новости не найдены.</p></div>';
+      return;
+    }
+    el.innerHTML = articles.slice(0, 12).map((item, i) => {
+      const img  = item.thumbnail || item.enclosure?.link || '';
+      const src  = cleanSource(item.source || item.author || '');
+      const date = relativeDate(item.pubDate);
+      const tag  = LABELS[activeTopic] || 'Новости';
+      return `
+        <article class="news-card" style="animation-delay:${i*0.06}s">
+          ${img ? `<div class="news-card-img"><img src="" alt="${esc(item.title)}" loading="lazy"></div>` : ''}
+          <div class="news-card-body">
+            <div>
+              <span class="news-tag">${tag}</span>
+              <h3 class="news-title">
+                <a href="${item.link}" target="_blank" rel="noopener noreferrer">${esc(item.title)}</a>
+              </h3>
+            </div>
+            <div class="news-source">
+              <strong>${esc(src)}</strong><span>·</span><span>${date}</span>
+            </div>
+          </div>
+        </article>`;
+    }).join('');
+  }
+
+  function renderTrending(articles) {
+    document.getElementById('trending-list').innerHTML = articles.map((item, i) => {
+      const src = cleanSource(item.source || item.author || '');
+      return `
+        <li class="sidebar-news-item" onclick="window.open('${item.link}','_blank')">
+          <span class="sidebar-num">${i+1}</span>
+          <div>
+            <div class="sidebar-news-text">${esc(cut(item.title, 80))}</div>
+            <div class="sidebar-news-src">${esc(src)}</div>
+          </div>
+        </li>`;
+    }).join('');
+  }
+
+  document.getElementById('search-input').addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    renderFeed(q ? allArticles.filter(a => a.title.toLowerCase().includes(q)) : allArticles);
+  });
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function cut(s, n) { return s.length > n ? s.slice(0,n)+'…' : s; }
+  function cleanSource(s) {
+    const parts = String(s).split(' - ');
+    return parts[parts.length-1].trim() || s;
+  }
+  function relativeDate(d) {
+    if (!d) return '';
+    try {
+      const diff = Math.floor((Date.now() - new Date(d)) / 60000);
+      if (diff < 1)    return 'только что';
+      if (diff < 60)   return `${diff} мин. назад`;
+      if (diff < 1440) return `${Math.floor(diff/60)} ч. назад`;
+      return new Date(d).toLocaleDateString('ru-RU', { day:'numeric', month:'short' });
+    } catch { return ''; }
+  }
+
+  document.getElementById('btn-sub').addEventListener('click', function() {
+    const email = document.getElementById('sub-email');
+    const name  = document.getElementById('sub-name');
+    if (!email.value || !name.value) {
+      email.reportValidity();
+      name.reportValidity();
+      return;
+    }
+    document.getElementById('sub-success').style.display = 'block';
+    this.disabled = true;
+    this.style.opacity = '0.6';
+  });
+
+  loadNews('headlines');
+</script>
+</body>
+</html>
